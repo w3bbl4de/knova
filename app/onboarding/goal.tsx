@@ -1,0 +1,36 @@
+// /app/onboarding/goal.tsx
+import React, { useState } from "react";
+import { SafeAreaView, View, Text, TouchableOpacity } from "react-native";
+import { router } from "expo-router";
+import { useOnboarding } from "../../context/OnboardingContext";
+import OptionChips from "../../components/OptionChips";
+import { ob } from "../../components/onboardingStyles";
+
+const OPTIONS = ["Learn basics", "Build projects", "Get a job", "Upskill"];
+
+export default function GoalStep() {
+  const { data, setData } = useOnboarding();
+  const [goal, setGoal] = useState(data.goal);
+
+  return (
+    <SafeAreaView style={ob.container}>
+      <View style={ob.content}>
+        <Text style={ob.title}>What’s your goal?</Text>
+        <Text style={ob.subtitle}>Pick one</Text>
+
+        <OptionChips options={OPTIONS} value={goal} onChange={setGoal} />
+
+        <TouchableOpacity
+          style={[ob.button, !goal && ob.disabled]}
+          disabled={!goal}
+          onPress={() => {
+            setData((p) => ({ ...p, goal }));
+            router.push("/onboarding/time");
+          }}
+        >
+          <Text style={ob.buttonText}>Next</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
