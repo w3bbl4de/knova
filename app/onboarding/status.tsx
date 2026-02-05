@@ -1,10 +1,11 @@
 // /app/onboarding/status.tsx
-import React, { useState } from "react";
-import { SafeAreaView, View, Text, TouchableOpacity } from "react-native";
+import SegmentedProgress from "@/components/SegmentedProgress";
 import { router } from "expo-router";
-import { useOnboarding } from "../../context/OnboardingContext";
+import React, { useState } from "react";
+import { SafeAreaView, Text, TouchableOpacity, View } from "react-native";
 import OptionChips from "../../components/OptionChips";
 import { ob } from "../../components/onboardingStyles";
+import { useOnboarding } from "../../context/OnboardingContext";
 
 const OPTIONS = ["Studying", "Working", "Both"];
 
@@ -14,6 +15,7 @@ export default function StatusStep() {
 
   return (
     <SafeAreaView style={ob.container}>
+      <SegmentedProgress total={6} current={3} />
       <View style={ob.content}>
         <Text style={ob.title}>Are you studying or working?</Text>
         <Text style={ob.subtitle}>Pick one</Text>

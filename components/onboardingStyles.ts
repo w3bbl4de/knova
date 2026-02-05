@@ -39,6 +39,12 @@ export const ob = StyleSheet.create({
     borderRadius: 32,
     alignItems: "center",
   },
+  footer: {
+  padding: 16,
+  borderTopWidth: 1,
+  backgroundColor: "#000",
+},
+
   disabled: { opacity: 0.4 },
   buttonText: { color: "#000", fontSize: 16, fontWeight: "700" },
 });

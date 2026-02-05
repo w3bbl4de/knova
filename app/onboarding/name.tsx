@@ -1,9 +1,10 @@
 // /app/onboarding/name.tsx
-import React, { useState } from "react";
-import { SafeAreaView, View, Text, TextInput, TouchableOpacity } from "react-native";
 import { router } from "expo-router";
-import { useOnboarding } from "../../context/OnboardingContext";
+import React, { useState } from "react";
+import { SafeAreaView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { ob } from "../../components/onboardingStyles";
+import SegmentedProgress from "../../components/SegmentedProgress";
+import { useOnboarding } from "../../context/OnboardingContext";
 
 export default function NameStep() {
   const { data, setData } = useOnboarding();
@@ -13,6 +14,7 @@ export default function NameStep() {
 
   return (
     <SafeAreaView style={ob.container}>
+      <SegmentedProgress total={6} current={1} />
       <View style={ob.content}>
         <Text style={ob.title}>What’s your name?</Text>
         <Text style={ob.subtitle}>So we can personalize your course</Text>

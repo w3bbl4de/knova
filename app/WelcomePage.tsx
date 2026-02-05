@@ -1,13 +1,13 @@
-import React from "react";
 import { router } from "expo-router";
+import React from "react";
 
 import {
-  View,
-  Text,
-  StyleSheet,
   Image,
-  TouchableOpacity,
   SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function WelcomeScreen() {
@@ -34,9 +34,9 @@ export default function WelcomeScreen() {
 </TouchableOpacity>
 
 
-        <TouchableOpacity style={styles.secondaryButton}>
-          <Text style={styles.secondaryText}>Continue with Apple</Text>
-        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push("/dev-login")}>
+  <Text style={{ color: "#9a9a9a", marginTop: 12 }}>Dev / Judge Login</Text>
+</TouchableOpacity>
 
         {/* Terms */}
         <Text style={styles.terms}>
