@@ -3,22 +3,22 @@ import React, { useState } from "react";
 import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useCreateCourse } from "../../context/CreateCourseContext";
 
-export default function SubjectScreen() {
-  const { setData } = useCreateCourse();
-  const [subject, setSubject] = useState("");
+export default function GoalStep() {
+  const { data, setData } = useCreateCourse();
+  const [goal, setGoal] = useState(data.goal ?? "");
 
-  const canContinue = subject.trim().length > 0;
+  const canContinue = goal.trim().length > 0;
 
   return (
     <SafeAreaView style={s.container}>
       <View style={s.content}>
-        <Text style={s.title}>What do you want to learn?</Text>
-        <Text style={s.subtitle}>Example: React Native, Algebra, English Speaking, Quantum mechanics</Text>
+        <Text style={s.title}>Your goal</Text>
+        <Text style={s.subtitle}>What outcome do you want from {data.subject}?</Text>
 
         <TextInput
-          value={subject}
-          onChangeText={setSubject}
-          placeholder="Enter a subject"
+          value={goal}
+          onChangeText={setGoal}
+          placeholder='Example: "Build apps", "Pass my exam", "Get interview-ready"'
           placeholderTextColor="#666"
           style={s.input}
         />
@@ -29,9 +29,8 @@ export default function SubjectScreen() {
           style={[s.button, !canContinue && s.disabled]}
           disabled={!canContinue}
           onPress={() => {
-            const trimmed = subject.trim();
-            setData((p) => ({ ...p, subject: trimmed }));
-            router.push("/create-course/goal");
+            setData((p) => ({ ...p, goal: goal.trim() }));
+            router.push("/create-course/level");
           }}
         >
           <Text style={s.buttonText}>Next</Text>

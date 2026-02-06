@@ -3,35 +3,32 @@ import React, { useState } from "react";
 import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useCreateCourse } from "../../context/CreateCourseContext";
 
-export default function SubjectScreen() {
-  const { setData } = useCreateCourse();
-  const [subject, setSubject] = useState("");
-
-  const canContinue = subject.trim().length > 0;
+export default function KnowledgeStep() {
+  const { data, setData } = useCreateCourse();
+  const [notes, setNotes] = useState(data.prior_knowledge ?? "");
 
   return (
     <SafeAreaView style={s.container}>
       <View style={s.content}>
-        <Text style={s.title}>What do you want to learn?</Text>
-        <Text style={s.subtitle}>Example: React Native, Algebra, English Speaking, Quantum mechanics</Text>
+        <Text style={s.title}>What do you already know?</Text>
+        <Text style={s.subtitle}>Optional — helps personalize the course</Text>
 
         <TextInput
-          value={subject}
-          onChangeText={setSubject}
-          placeholder="Enter a subject"
+          value={notes}
+          onChangeText={setNotes}
+          placeholder='Example: "I know variables and loops, but not async/await"'
           placeholderTextColor="#666"
-          style={s.input}
+          style={[s.input, { height: 130 }]}
+          multiline
         />
       </View>
 
       <View style={s.footer}>
         <TouchableOpacity
-          style={[s.button, !canContinue && s.disabled]}
-          disabled={!canContinue}
+          style={s.button}
           onPress={() => {
-            const trimmed = subject.trim();
-            setData((p) => ({ ...p, subject: trimmed }));
-            router.push("/create-course/goal");
+            setData((p) => ({ ...p, prior_knowledge: notes.trim() }));
+            router.push("/create-course/review");
           }}
         >
           <Text style={s.buttonText}>Next</Text>
@@ -54,10 +51,9 @@ const s = StyleSheet.create({
     color: "#fff",
     borderWidth: 1,
     borderColor: "#222",
-    fontSize: 16,
+    fontSize: 14,
   },
   footer: { padding: 16, backgroundColor: "#000" },
   button: { backgroundColor: "#fff", paddingVertical: 16, borderRadius: 32, alignItems: "center" },
-  disabled: { opacity: 0.4 },
   buttonText: { color: "#000", fontSize: 16, fontWeight: "700" },
 });

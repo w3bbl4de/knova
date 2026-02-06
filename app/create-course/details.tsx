@@ -1,27 +1,68 @@
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
-import { SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import OptionChips from "../../components/OptionChips"; // your card-style options
+import { Alert, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import OptionChips from "../../components/OptionChips";
+import { createCourse } from "../../lib/courses";
 
 const LEVELS = ["Beginner", "Intermediate", "Advanced"] as const;
 type Level = (typeof LEVELS)[number];
 
+const PACES = ["Relaxed", "Normal", "Fast"] as const;
+type Pace = (typeof PACES)[number];
+
 export default function DetailsScreen() {
   const { subject } = useLocalSearchParams<{ subject: string }>();
 
-  const [level, setLevel] = useState<Level | "">("");
-  const [notes, setNotes] = useState("");
+  const [goal, setGoal] = useState("");
+  const [level, setLevel] = useState<Level>("Beginner"); // default avoids empty state issues
+  const [pace, setPace] = useState<Pace>("Normal");      // optional but useful default
+  const [notes, setNotes] = useState("");                // prior_knowledge
+  const [saving, setSaving] = useState(false);
 
-  const canContinue = !!subject && !!level;
+  const subjectStr = String(subject ?? "").trim();
+  const canContinue = subjectStr.length > 0 && goal.trim().length > 0 && !saving;
+
+  const onCreate = async () => {
+    try {
+      setSaving(true);
+
+      await createCourse({
+        subject: subjectStr,
+        goal,
+        level,
+        pace, // optional in DB but good to store
+        prior_knowledge: notes,
+      });
+
+      // For now, skip Gemini. Just go back and show it on dashboard.
+      router.replace("/dashboard");
+    } catch (e: any) {
+      Alert.alert("Create course failed", e?.message ?? "Unknown error");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SafeAreaView style={s.container}>
       <View style={s.content}>
-        <Text style={s.title}>About your {subject} course</Text>
-        <Text style={s.subtitle}>This helps Gemini personalize it</Text>
+        <Text style={s.title}>About your {subjectStr} course</Text>
+        <Text style={s.subtitle}>This helps personalize it</Text>
+
+        <Text style={s.label}>What’s your goal? *</Text>
+        <TextInput
+          value={goal}
+          onChangeText={setGoal}
+          placeholder='Example: "Build apps", "Pass my exam", "Learn fundamentals"'
+          placeholderTextColor="#666"
+          style={s.input}
+        />
 
         <Text style={s.label}>Your level</Text>
-        <OptionChips options={LEVELS} value={(level || LEVELS[0]) as Level} onChange={setLevel} />
+        <OptionChips options={LEVELS} value={level} onChange={setLevel as any} />
+
+        <Text style={s.label}>Pace</Text>
+        <OptionChips options={PACES} value={pace} onChange={setPace as any} />
 
         <Text style={s.label}>What do you already know? (optional)</Text>
         <TextInput
@@ -38,15 +79,9 @@ export default function DetailsScreen() {
         <TouchableOpacity
           style={[s.button, !canContinue && s.disabled]}
           disabled={!canContinue}
-          onPress={() => {
-            // Next step later: call Gemini API
-            router.push({
-              pathname: "/create-course/generate",
-              params: { subject: String(subject), level, notes },
-            });
-          }}
+          onPress={onCreate}
         >
-          <Text style={s.buttonText}>Generate Course</Text>
+          <Text style={s.buttonText}>{saving ? "Saving..." : "Create Course"}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
