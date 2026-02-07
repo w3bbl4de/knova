@@ -79,8 +79,7 @@ export default function Dashboard() {
                 <TouchableOpacity
                   style={styles.courseCard}
                   onPress={() => {
-                    // Later: open course details page
-                    // router.push({ pathname: "/course/[id]", params: { id: item.id } });
+                    router.push(`/course/${item.id}`);
                   }}
                 >
                   <Text style={styles.courseSubject}>{item.subject}</Text>
