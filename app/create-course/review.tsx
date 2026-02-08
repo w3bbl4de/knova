@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Alert, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useCreateCourse } from "../../context/CreateCourseContext";
 import { createCourse } from "../../lib/courses";
+import { generateCourse } from "../../lib/generateCourse"; // ✅ use same wrapper as course screen
 
 export default function ReviewStep() {
   const { data, reset } = useCreateCourse();
@@ -14,13 +15,18 @@ export default function ReviewStep() {
     try {
       setSaving(true);
 
-      await createCourse({
+      // 1) Create course row and get id
+      const { id: courseId } = await createCourse({
         subject: data.subject,
         goal: data.goal,
         level: data.level,
         pace: data.pace,
         prior_knowledge: data.prior_knowledge,
       });
+
+      // 2) Generate using the SAME function your Course screen uses
+      const result = await generateCourse(courseId);
+      if (!result?.ok) throw new Error(result?.error ?? "Course generation failed");
 
       reset();
       router.replace("/dashboard");
@@ -38,23 +44,29 @@ export default function ReviewStep() {
         <Text style={s.subtitle}>Confirm before creating the course</Text>
 
         <View style={s.card}>
-          <Text style={s.row}><Text style={s.k}>Subject:</Text> {data.subject}</Text>
-          <Text style={s.row}><Text style={s.k}>Goal:</Text> {data.goal}</Text>
-          <Text style={s.row}><Text style={s.k}>Level:</Text> {data.level}</Text>
-          <Text style={s.row}><Text style={s.k}>Pace:</Text> {data.pace}</Text>
+          <Text style={s.row}>
+            <Text style={s.k}>Subject:</Text> {data.subject}
+          </Text>
+          <Text style={s.row}>
+            <Text style={s.k}>Goal:</Text> {data.goal}
+          </Text>
+          <Text style={s.row}>
+            <Text style={s.k}>Level:</Text> {data.level}
+          </Text>
+          <Text style={s.row}>
+            <Text style={s.k}>Pace:</Text> {data.pace}
+          </Text>
           {!!data.prior_knowledge?.trim() && (
-            <Text style={s.row}><Text style={s.k}>You know:</Text> {data.prior_knowledge}</Text>
+            <Text style={s.row}>
+              <Text style={s.k}>You know:</Text> {data.prior_knowledge}
+            </Text>
           )}
         </View>
       </View>
 
       <View style={s.footer}>
-        <TouchableOpacity
-          style={[s.button, !canCreate && s.disabled]}
-          disabled={!canCreate}
-          onPress={onCreate}
-        >
-          <Text style={s.buttonText}>{saving ? "Saving..." : "Create Course"}</Text>
+        <TouchableOpacity style={[s.button, !canCreate && s.disabled]} disabled={!canCreate} onPress={onCreate}>
+          <Text style={s.buttonText}>{saving ? "Creating..." : "Create & Generate"}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

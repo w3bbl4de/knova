@@ -1,11 +1,19 @@
 // app/course/[id].tsx
+import { supabase } from "@/lib/supabase";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Course, getCourseById } from "../../lib/courses";
 import { generateCourse } from "../../lib/generateCourse";
-
 
 export default function CourseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -13,9 +21,12 @@ export default function CourseScreen() {
 
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
+  const [openModuleId, setOpenModuleId] = useState<string | null>(null);
 
   const load = async () => {
     try {
+    const { data } = await supabase.auth.getSession();
+    console.log("has session:", !!data.session);
       setLoading(true);
       const c = await getCourseById(courseId);
       setCourse(c);
@@ -32,12 +43,22 @@ export default function CourseScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
+  const onGenerate = async () => {
+    if (!course) return;
+    try {
+      await generateCourse(course.id);
+      await load();
+    } catch (e: any) {
+      Alert.alert("Generation failed", String(e?.message ?? e));
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.center}>
           <ActivityIndicator />
-          <Text style={s.muted}>Loading course…</Text>
+          <Text style={s.muted}>Loading…</Text>
         </View>
       </SafeAreaView>
     );
@@ -61,36 +82,15 @@ export default function CourseScreen() {
       <ScrollView contentContainerStyle={s.content}>
         <Text style={s.title}>{course.subject}</Text>
         <Text style={s.subtitle}>{course.goal}</Text>
-
         <Text style={s.meta}>
           {course.level}
           {course.pace ? ` • ${course.pace}` : ""}
         </Text>
 
-        {/* Status-based UI */}
         {course.status === "draft" && (
           <View style={s.card}>
             <Text style={s.cardTitle}>Not generated yet</Text>
-            <Text style={s.muted}>
-              Next step: generate modules and lessons with AI.
-            </Text>
-
-            {/* For Step 3 we’ll wire this button to start Gemini */}
-            <TouchableOpacity
-              style={[s.button, { marginTop: 12 }]}
-              onPress={async () => {
-  try {
-    await generateCourse(course.id);
-    await load(); // re-fetch course → status should now be "generating"
-  } catch (e: any) {
-    Alert.alert(
-      "Generation failed",
-      String(e?.message ?? e)
-    );
-  }
-}}
-
-            >
+            <TouchableOpacity style={[s.button, { marginTop: 12 }]} onPress={onGenerate}>
               <Text style={s.buttonText}>Generate course</Text>
             </TouchableOpacity>
           </View>
@@ -99,10 +99,6 @@ export default function CourseScreen() {
         {course.status === "generating" && (
           <View style={s.card}>
             <Text style={s.cardTitle}>Generating…</Text>
-            <Text style={s.muted}>
-              Your course is being created. You can leave this screen and come back.
-            </Text>
-
             <TouchableOpacity style={[s.ghostBtn, { marginTop: 12 }]} onPress={load}>
               <Text style={s.ghostText}>Refresh</Text>
             </TouchableOpacity>
@@ -113,12 +109,7 @@ export default function CourseScreen() {
           <View style={s.card}>
             <Text style={s.cardTitle}>Generation failed</Text>
             {!!course.ai_error && <Text style={s.errorText}>{course.ai_error}</Text>}
-
-            {/* Step 3 will turn this into a real retry */}
-            <TouchableOpacity
-              style={[s.button, { marginTop: 12 }]}
-              onPress={() => Alert.alert("Next step", "We will implement retry in Step 3.")}
-            >
+            <TouchableOpacity style={[s.button, { marginTop: 12 }]} onPress={onGenerate}>
               <Text style={s.buttonText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -129,23 +120,63 @@ export default function CourseScreen() {
             <Text style={s.cardTitle}>Modules</Text>
 
             {course.ai_plan?.modules?.length ? (
-              course.ai_plan.modules.map((m, i) => (
-                <View key={m.id ?? `${i}-${m.title}`} style={s.module}>
-                  <Text style={s.moduleTitle}>
-                    {i + 1}. {m.title}
-                  </Text>
+              course.ai_plan.modules.map((m, i) => {
+                const moduleKey = m.id ?? `mod-${i}`;
+                const isOpen = openModuleId === moduleKey;
 
-                  {!!m.lessons?.length ? (
-                    m.lessons.map((l, j) => (
-                      <Text key={l.id ?? `${i}-${j}-${l.title}`} style={s.lesson}>
-                        • {l.title}
+                return (
+                  <View key={moduleKey} style={s.moduleWrap}>
+                    {/* Module “folder” button */}
+                    <TouchableOpacity
+                      style={s.moduleBtn}
+                      onPress={() => setOpenModuleId(isOpen ? null : moduleKey)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={s.moduleBtnTitle}>
+                        {i + 1}. {m.title}
                       </Text>
-                    ))
-                  ) : (
-                    <Text style={s.muted}>No lessons in this module.</Text>
-                  )}
-                </View>
-              ))
+                      <Text style={s.moduleBtnMeta}>
+                        {isOpen ? "▼" : "▶"} {m.lessons?.length ?? 0} lessons
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Expand to show lessons */}
+                    {isOpen && (
+                      <View style={s.lessonList}>
+                        {!!m.lessons?.length ? (
+                          m.lessons.map((l, j) => (
+                            <TouchableOpacity
+                              key={l.id ?? `${moduleKey}-les-${j}`}
+                              style={s.lessonBtn}
+                              onPress={() => {
+                                if (!l.id) {
+                                Alert.alert("Missing lesson id", "This lesson has no id yet.");
+                                return;
+                                }
+
+                                router.push({
+                                pathname: "/course/[courseId]/lesson/[lessonId]",
+                                params: {
+                                courseId: course.id,
+                                lessonId: l.id,
+                                },
+                                });
+                                }}
+
+                            >
+                              <Text style={s.lessonText}>
+                                {i + 1}.{j + 1} {l.title}
+                              </Text>
+                            </TouchableOpacity>
+                          ))
+                        ) : (
+                          <Text style={s.muted}>No lessons.</Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              })
             ) : (
               <Text style={s.muted}>No plan found.</Text>
             )}
@@ -175,6 +206,31 @@ const s = StyleSheet.create({
   },
   cardTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
   muted: { color: "#9a9a9a", marginTop: 8 },
+
+  moduleWrap: { marginTop: 12 },
+
+  moduleBtn: {
+    backgroundColor: "#0f0f0f",
+    borderWidth: 1,
+    borderColor: "#222",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+  },
+
+  moduleBtnTitle: { color: "#fff", fontWeight: "800" },
+  moduleBtnMeta: { color: "#9a9a9a", marginTop: 6, fontSize: 12 },
+
+  lessonList: {
+    marginTop: 10,
+    marginLeft: 8,
+    borderLeftWidth: 1,
+    borderLeftColor: "#222",
+    paddingLeft: 10,
+  },
+
+  lessonBtn: { paddingVertical: 10 },
+  lessonText: { color: "#cfcfcf" },
 
   button: {
     backgroundColor: "#fff",
