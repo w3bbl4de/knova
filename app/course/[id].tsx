@@ -1,10 +1,11 @@
 // app/course/[id].tsx
 import { supabase } from "@/lib/supabase";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,19 +22,29 @@ export default function CourseScreen() {
 
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [openModuleId, setOpenModuleId] = useState<string | null>(null);
+  const [generatingNow, setGeneratingNow] = useState(false);
 
-  const load = async () => {
+  const metaChips = useMemo(() => {
+    if (!course) return [];
+    const chips = [course.level].filter(Boolean) as string[];
+    if (course.pace) chips.push(course.pace);
+    return chips;
+  }, [course]);
+
+  const load = async (opts?: { silent?: boolean }) => {
     try {
-    const { data } = await supabase.auth.getSession();
-    console.log("has session:", !!data.session);
-      setLoading(true);
+      if (!opts?.silent) setLoading(true);
+      const { data } = await supabase.auth.getSession();
+      console.log("has session:", !!data.session);
+
       const c = await getCourseById(courseId);
       setCourse(c);
     } catch (e: any) {
       Alert.alert("Failed to load course", e?.message ?? "Unknown error");
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   };
 
@@ -43,13 +54,22 @@ export default function CourseScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId]);
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load({ silent: true });
+    setRefreshing(false);
+  };
+
   const onGenerate = async () => {
     if (!course) return;
     try {
+      setGeneratingNow(true);
       await generateCourse(course.id);
-      await load();
+      await load({ silent: true });
     } catch (e: any) {
       Alert.alert("Generation failed", String(e?.message ?? e));
+    } finally {
+      setGeneratingNow(false);
     }
   };
 
@@ -69,8 +89,8 @@ export default function CourseScreen() {
       <SafeAreaView style={s.container}>
         <View style={s.center}>
           <Text style={s.title}>Course not found</Text>
-          <TouchableOpacity style={s.button} onPress={() => router.back()}>
-            <Text style={s.buttonText}>Go back</Text>
+          <TouchableOpacity style={s.primaryBtn} onPress={() => router.back()}>
+            <Text style={s.primaryBtnText}>Go back</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -79,19 +99,47 @@ export default function CourseScreen() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.content}>
-        <Text style={s.title}>{course.subject}</Text>
-        <Text style={s.subtitle}>{course.goal}</Text>
-        <Text style={s.meta}>
-          {course.level}
-          {course.pace ? ` • ${course.pace}` : ""}
-        </Text>
+      <ScrollView
+        contentContainerStyle={s.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        {/* Header */}
+        <View style={s.header}>
+          <Text style={s.title}>{course.subject}</Text>
+          {!!course.goal && <Text style={s.subtitle}>{course.goal}</Text>}
 
+          {!!metaChips.length && (
+            <View style={s.chipRow}>
+              {metaChips.map((t) => (
+                <View key={t} style={s.chip}>
+                  <Text style={s.chipText}>{t}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Status cards */}
         {course.status === "draft" && (
           <View style={s.card}>
             <Text style={s.cardTitle}>Not generated yet</Text>
-            <TouchableOpacity style={[s.button, { marginTop: 12 }]} onPress={onGenerate}>
-              <Text style={s.buttonText}>Generate course</Text>
+            <Text style={s.cardBody}>Generate the plan so modules and lessons appear here.</Text>
+
+            <TouchableOpacity
+  style={[s.primaryBtn, { marginTop: 12 }, generatingNow && s.btnDisabled]}
+  onPress={onGenerate}
+  disabled={generatingNow}
+  activeOpacity={0.85}
+>
+
+              {generatingNow ? (
+                <View style={s.btnRow}>
+                  <ActivityIndicator />
+                  <Text style={s.primaryBtnText}>Generating…</Text>
+                </View>
+              ) : (
+                <Text style={s.primaryBtnText}>Generate course</Text>
+              )}
             </TouchableOpacity>
           </View>
         )}
@@ -99,48 +147,70 @@ export default function CourseScreen() {
         {course.status === "generating" && (
           <View style={s.card}>
             <Text style={s.cardTitle}>Generating…</Text>
-            <TouchableOpacity style={[s.ghostBtn, { marginTop: 12 }]} onPress={load}>
-              <Text style={s.ghostText}>Refresh</Text>
+            <Text style={s.cardBody}>This can take a minute. Pull to refresh, or tap below.</Text>
+
+            <TouchableOpacity style={[s.secondaryBtn, { marginTop: 12 }]} onPress={onRefresh} activeOpacity={0.85}>
+              <Text style={s.secondaryBtnText}>Refresh</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {course.status === "failed" && (
-          <View style={s.card}>
+          <View style={[s.card, s.cardDanger]}>
             <Text style={s.cardTitle}>Generation failed</Text>
             {!!course.ai_error && <Text style={s.errorText}>{course.ai_error}</Text>}
-            <TouchableOpacity style={[s.button, { marginTop: 12 }]} onPress={onGenerate}>
-              <Text style={s.buttonText}>Retry</Text>
+
+            <TouchableOpacity
+              style={[s.primaryBtn, { marginTop: 12 }]}
+              onPress={onGenerate}
+              activeOpacity={0.85}
+            >
+              <Text style={s.primaryBtnText}>Retry</Text>
             </TouchableOpacity>
           </View>
         )}
 
+        {/* Modules */}
         {course.status === "ready" && (
           <View style={s.card}>
-            <Text style={s.cardTitle}>Modules</Text>
+            <View style={s.cardHeaderRow}>
+              <Text style={s.cardTitle}>Modules</Text>
+              <Text style={s.cardMeta}>
+                {course.ai_plan?.modules?.length ?? 0} total
+              </Text>
+            </View>
 
             {course.ai_plan?.modules?.length ? (
               course.ai_plan.modules.map((m, i) => {
                 const moduleKey = m.id ?? `mod-${i}`;
                 const isOpen = openModuleId === moduleKey;
+                const lessonCount = m.lessons?.length ?? 0;
 
                 return (
                   <View key={moduleKey} style={s.moduleWrap}>
-                    {/* Module “folder” button */}
                     <TouchableOpacity
-                      style={s.moduleBtn}
+                      style={[s.moduleBtn, isOpen && s.moduleBtnOpen]}
                       onPress={() => setOpenModuleId(isOpen ? null : moduleKey)}
                       activeOpacity={0.85}
                     >
-                      <Text style={s.moduleBtnTitle}>
-                        {i + 1}. {m.title}
-                      </Text>
+                      <View style={s.moduleTopRow}>
+                        <Text style={s.moduleBtnTitle} numberOfLines={2}>
+                          {i + 1}. {m.title}
+                        </Text>
+
+                        <View style={s.moduleRight}>
+                          <View style={s.badge}>
+                            <Text style={s.badgeText}>{lessonCount}</Text>
+                          </View>
+                          <Text style={s.chevron}>{isOpen ? "⌄" : "›"}</Text>
+                        </View>
+                      </View>
+
                       <Text style={s.moduleBtnMeta}>
-                        {isOpen ? "▼" : "▶"} {m.lessons?.length ?? 0} lessons
+                        {isOpen ? "Tap to collapse" : "Tap to expand"}
                       </Text>
                     </TouchableOpacity>
 
-                    {/* Expand to show lessons */}
                     {isOpen && (
                       <View style={s.lessonList}>
                         {!!m.lessons?.length ? (
@@ -150,23 +220,24 @@ export default function CourseScreen() {
                               style={s.lessonBtn}
                               onPress={() => {
                                 if (!l.id) {
-                                Alert.alert("Missing lesson id", "This lesson has no id yet.");
-                                return;
+                                  Alert.alert("Missing lesson id", "This lesson has no id yet.");
+                                  return;
                                 }
 
                                 router.push({
-                                pathname: "/course/[courseId]/lesson/[lessonId]",
-                                params: {
-                                courseId: course.id,
-                                lessonId: l.id,
-                                },
+                                  pathname: "/course/[courseId]/lesson/[lessonId]",
+                                  params: { courseId: course.id, lessonId: l.id },
                                 });
-                                }}
-
+                              }}
+                              activeOpacity={0.85}
                             >
-                              <Text style={s.lessonText}>
-                                {i + 1}.{j + 1} {l.title}
-                              </Text>
+                              <View style={s.lessonRow}>
+                                <Text style={s.lessonText} numberOfLines={2}>
+                                  {i + 1}.{j + 1} {l.title}
+                                </Text>
+                                <Text style={s.lessonChevron}>›</Text>
+                              </View>
+                              <View style={s.divider} />
                             </TouchableOpacity>
                           ))
                         ) : (
@@ -186,72 +257,114 @@ export default function CourseScreen() {
     </SafeAreaView>
   );
 }
-
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#000" },
-  content: { padding: 24, paddingBottom: 40 },
+  container: { flex: 1, backgroundColor: "#0B0B0B" },
+  content: { padding: 20, paddingBottom: 44 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
 
-  title: { color: "#fff", fontSize: 26, fontWeight: "800", marginTop: 8 },
-  subtitle: { color: "#9a9a9a", marginTop: 8, fontSize: 14 },
-  meta: { color: "#6f6f6f", marginTop: 10, fontSize: 12 },
+  header: { paddingTop: 6, paddingBottom: 6 },
+
+  title: { color: "#fff", fontSize: 28, fontWeight: "900", letterSpacing: 0.2 },
+  subtitle: { color: "#B5B5B5", marginTop: 10, fontSize: 14, lineHeight: 20 },
+  muted: { color: "#9A9A9A", marginTop: 8 },
+
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  chip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: "#141414",
+    borderWidth: 1,
+    borderColor: "#242424",
+  },
+  chipText: { color: "#CFCFCF", fontSize: 12, fontWeight: "700" },
 
   card: {
-    marginTop: 18,
-    backgroundColor: "#121212",
-    borderRadius: 16,
+    marginTop: 16,
+    backgroundColor: "#111111",
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#222",
+    borderColor: "#1F1F1F",
     padding: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
-  cardTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  muted: { color: "#9a9a9a", marginTop: 8 },
+  cardDanger: { borderColor: "#3A1A1A" },
+  cardTitle: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  cardBody: { color: "#B5B5B5", marginTop: 8, lineHeight: 20 },
+  cardHeaderRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
+  cardMeta: { color: "#8D8D8D", fontSize: 12, fontWeight: "700" },
+
+  errorText: { color: "#FF7A7A", marginTop: 10, lineHeight: 18 },
 
   moduleWrap: { marginTop: 12 },
 
   moduleBtn: {
-    backgroundColor: "#0f0f0f",
+    backgroundColor: "#0E0E0E",
     borderWidth: 1,
-    borderColor: "#222",
-    borderRadius: 14,
+    borderColor: "#1F1F1F",
+    borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 12,
   },
+  moduleBtnOpen: { borderColor: "#2A2A2A", backgroundColor: "#101010" },
 
-  moduleBtnTitle: { color: "#fff", fontWeight: "800" },
-  moduleBtnMeta: { color: "#9a9a9a", marginTop: 6, fontSize: 12 },
+  moduleTopRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  moduleBtnTitle: { color: "#fff", fontWeight: "900", flex: 1, lineHeight: 20 },
+  moduleBtnMeta: { color: "#9A9A9A", marginTop: 8, fontSize: 12 },
+
+  moduleRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  badge: {
+    minWidth: 28,
+    height: 22,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: "#171717",
+    borderWidth: 1,
+    borderColor: "#242424",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: { color: "#E6E6E6", fontWeight: "900", fontSize: 12 },
+  chevron: { color: "#BDBDBD", fontSize: 18, marginTop: -2 },
 
   lessonList: {
     marginTop: 10,
     marginLeft: 8,
     borderLeftWidth: 1,
-    borderLeftColor: "#222",
+    borderLeftColor: "#1F1F1F",
     paddingLeft: 10,
   },
 
-  lessonBtn: { paddingVertical: 10 },
-  lessonText: { color: "#cfcfcf" },
+  lessonBtn: { paddingVertical: 2 },
+  lessonRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 10 },
+  lessonText: { color: "#D6D6D6", flex: 1, lineHeight: 20, fontWeight: "600" },
+  lessonChevron: { color: "#8F8F8F", fontSize: 18 },
+  divider: { height: 1, backgroundColor: "#171717", marginTop: 10 },
 
-  button: {
+  primaryBtn: {
     backgroundColor: "#fff",
     paddingVertical: 14,
-    borderRadius: 28,
+    borderRadius: 999,
     alignItems: "center",
+    justifyContent: "center",
   },
-  buttonText: { color: "#000", fontSize: 15, fontWeight: "700" },
+  primaryBtnText: { color: "#000", fontSize: 15, fontWeight: "900" },
 
-  ghostBtn: {
+  secondaryBtn: {
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: "#2A2A2A",
     paddingVertical: 12,
-    borderRadius: 28,
+    borderRadius: 999,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0E0E0E",
   },
-  ghostText: { color: "#fff", fontWeight: "700" },
+  secondaryBtnText: { color: "#fff", fontWeight: "800" },
 
-  errorText: { color: "#ff6b6b", marginTop: 8 },
-
-  module: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#222" },
-  moduleTitle: { color: "#fff", fontWeight: "700" },
-  lesson: { color: "#9a9a9a", marginTop: 6, marginLeft: 6 },
+  btnRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10 },
+  btnDisabled: { opacity: 0.65 },
 });

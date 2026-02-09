@@ -1,10 +1,10 @@
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import LiveTutorWeb from "../../../../components/LiveTutorWeb";
 import { Course, getCourseById } from "../../../../lib/courses";
 import { generateLesson } from "../../../../lib/generateLesson";
-import { supabase } from "../../../../lib/supabase";
 
 export default function LessonScreen() {
   const { courseId, lessonId } = useLocalSearchParams<{ courseId: string; lessonId: string }>();
@@ -14,12 +14,11 @@ export default function LessonScreen() {
   const [course, setCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [showTutor, setShowTutor] = useState(false);
 
   const load = async () => {
     try {
       setLoading(true);
-      const { data } = await supabase.auth.getSession();
-      console.log("has session:", !!data.session);
       const c = await getCourseById(cid);
       setCourse(c);
     } catch (e: any) {
@@ -49,6 +48,25 @@ export default function LessonScreen() {
     }
     return null;
   }, [course, lid]);
+
+  const lessonContextText = useMemo(() => {
+    if (!resolved) return "";
+    const { lesson, module } = resolved;
+    const blocks = (lesson as any)?.content?.content_blocks ?? [];
+    const compactBlocks = blocks
+      .slice(0, 8)
+      .map((b: any, idx: number) => `- ${b.title}: ${String(b.content ?? "").slice(0, 140)}`)
+      .join("\n");
+
+    return `
+Course: ${course?.subject} (${course?.level})
+Module: ${module.title}
+Lesson: ${lesson.title}
+
+Key points:
+${compactBlocks || "- (No generated blocks yet)"}
+`.trim();
+  }, [resolved, course]);
 
   if (loading) {
     return (
@@ -129,14 +147,25 @@ export default function LessonScreen() {
           )}
 
           <TouchableOpacity
-            style={[s.ghostBtn, { marginTop: 12, opacity: 0.5 }]}
-            disabled
-            onPress={() => {}}
+            style={[s.ghostBtn, { marginTop: 12, opacity: 1 }]}
+            onPress={() => {
+              if (Platform.OS !== "web") {
+                Alert.alert("Live Tutor (Web only)", "Open this lesson on the web version to use Live Tutor.");
+                return;
+              }
+              setShowTutor(true);
+            }}
           >
-            <Text style={s.ghostText}>Start Live Tutor (next step)</Text>
+            <Text style={s.ghostText}>Start Live Tutor</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+      {showTutor && Platform.OS === "web" && (
+        <LiveTutorWeb
+          lessonContextText={lessonContextText}
+          onClose={() => setShowTutor(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
