@@ -272,7 +272,7 @@ Deno.serve(async (req: Request) => {
     // Set generating (do not mark failed for quota mid-way)
     await admin.from("courses").update({ status: "generating", ai_error: null }).eq("id", course_id);
 
-    const model = "gemini-3-pro-preview";
+    const model = "gemini-3-flash-preview";
 
     // 1) Ensure TOC exists
     let aiPlan = course.ai_plan;

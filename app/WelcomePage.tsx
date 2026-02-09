@@ -12,7 +12,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import Animated, {
   Easing,
@@ -100,7 +100,13 @@ export default function WelcomeScreen() {
           >
             <TouchableOpacity
               activeOpacity={0.9}
-              onPress={() => handlePress("./onboarding/name")}
+              onPress={() => {
+  if (typeof window !== "undefined") {
+    window.alert(
+      "Registration disabled.\n\nThis app is in demo mode. Please use Dev / Judge Login to continue."
+    );
+  }
+}}
             >
               <LinearGradient
                 colors={["#fff", "#e0e0e0"]}
@@ -114,12 +120,13 @@ export default function WelcomeScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              activeOpacity={0.7}
-              style={styles.secondaryButton}
-              onPress={() => handlePress("/dev-login")}
-            >
-              <Text style={styles.secondaryText}>I have an account</Text>
-            </TouchableOpacity>
+  activeOpacity={0.85}
+  style={styles.devJudgeButton}
+  onPress={() => handlePress("/dev-login")} // will change once I see your auth flow
+>
+  <Text style={styles.devJudgeText}>Dev / Judge Login</Text>
+</TouchableOpacity>
+
 
             <Text style={styles.terms}>
               By continuing, you agree to our{" "}
@@ -266,6 +273,20 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 16,
   },
+  devJudgeButton: {
+  width: "100%",
+  paddingVertical: 14,
+  borderRadius: 14,
+  alignItems: "center",
+  backgroundColor: "rgba(239, 68, 68, 0.22)", // light red, semi-opaque
+  borderWidth: 1,
+  borderColor: "rgba(239, 68, 68, 0.35)",
+},
+devJudgeText: {
+  fontSize: 16,
+  fontWeight: "700",
+  color: "#fecaca", // light red text
+},
   link: {
     color: "#6b7280", // Gray 500
     textDecorationLine: "underline",
